@@ -1,0 +1,18 @@
+﻿# Dependencies
+node_modules/
+
+# Build output
+dist/
+.nest/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs / coverage
+coverage/
+*.log
+
+# Neon metadata
+.neon
