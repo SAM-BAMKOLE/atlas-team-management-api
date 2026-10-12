@@ -72,12 +72,17 @@ authenticated account whose email matches the invitation.
 
 Projects, boards, and ordered columns are scoped to a workspace. Every route
 checks the workspace membership before loading the requested project or board.
+Members can rename boards and columns and reorder columns; deleting a board or
+column is limited to owners and admins, and deleting a non-empty column
+requires `?force=true`.
 
 ## Tasks
 
 Tasks belong to a board column and support priorities, due dates, ordering,
-archiving, and assignment to workspace members. Task routes validate the full
-workspace → project → board chain before reading or writing data.
+archiving, and assignment to workspace members. Archived tasks can be listed
+and restored, or permanently deleted by owners and admins. Task routes
+validate the full workspace → project → board chain before reading or writing
+data.
 
 ## Email
 

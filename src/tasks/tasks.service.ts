@@ -42,10 +42,40 @@ export class TasksService {
     });
   }
 
-  async list(workspaceId: string, projectId: string, boardId: string) {
+  /** Tasks across every board of a project, for the project "Tasks" page. */
+  async listForProject(
+    workspaceId: string,
+    projectId: string,
+    archived: boolean,
+  ) {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, workspaceId },
+      select: { id: true },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+    return this.prisma.task.findMany({
+      where: { board: { projectId }, archived },
+      orderBy: [{ boardId: 'asc' }, { columnId: 'asc' }, { position: 'asc' }],
+      include: {
+        board: { select: { id: true, name: true } },
+        column: { select: { id: true, name: true } },
+        assignees: {
+          include: { user: { select: { id: true, email: true, name: true } } },
+        },
+        labels: { include: { label: true } },
+      },
+    });
+  }
+
+  async list(
+    workspaceId: string,
+    projectId: string,
+    boardId: string,
+    archived = false,
+  ) {
     await this.assertBoard(workspaceId, projectId, boardId);
     return this.prisma.task.findMany({
-      where: { boardId, archived: false },
+      where: { boardId, archived },
       orderBy: [{ columnId: 'asc' }, { position: 'asc' }],
       include: {
         assignees: {
@@ -82,6 +112,38 @@ export class TasksService {
         labels: { include: { label: true } },
       },
     });
+  }
+
+  /** Fetch a single task regardless of archive state (for deep links). */
+  async get(
+    workspaceId: string,
+    projectId: string,
+    boardId: string,
+    taskId: string,
+  ) {
+    await this.assertTask(workspaceId, projectId, boardId, taskId);
+    return this.prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        assignees: {
+          include: { user: { select: { id: true, email: true, name: true } } },
+        },
+        labels: { include: { label: true } },
+      },
+    });
+  }
+
+  async purge(
+    workspaceId: string,
+    projectId: string,
+    boardId: string,
+    taskId: string,
+  ) {
+    await this.assertTask(workspaceId, projectId, boardId, taskId);
+    // Hard delete: comments, assignees, labels, and activity follow through
+    // the database-level cascade. Owners/admins only (enforced upstream).
+    await this.prisma.task.delete({ where: { id: taskId } });
+    return { success: true };
   }
 
   async move(
@@ -133,6 +195,27 @@ export class TasksService {
     await this.assertTask(workspaceId, projectId, boardId, taskId);
     await this.prisma.taskAssignee.deleteMany({ where: { taskId, userId } });
     return { success: true };
+  }
+
+  async remove(
+    workspaceId: string,
+    projectId: string,
+    boardId: string,
+    taskId: string,
+  ) {
+    await this.assertTask(workspaceId, projectId, boardId, taskId);
+    // Soft delete: archived tasks stay in the database (comments, labels,
+    // and history intact) but drop out of the board listing.
+    return this.prisma.task.update({
+      where: { id: taskId },
+      data: { archived: true },
+      include: {
+        assignees: {
+          include: { user: { select: { id: true, email: true, name: true } } },
+        },
+        labels: { include: { label: true } },
+      },
+    });
   }
 
   private async assertBoard(

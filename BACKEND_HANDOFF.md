@@ -303,6 +303,10 @@ Returns projects ordered by creation time. Each project includes a `boards` arra
 
 Returns one project with `boards`. Each board includes a `columns` array ordered by `position`.
 
+### `GET /workspaces/:workspaceId/projects/:projectId/tasks`
+
+Returns every task across the project's boards (the project "Tasks" page). By default only non-archived tasks are returned; pass `?archived=true` for the archived ones. Ordered by `boardId`, then `columnId`, then `position`. Each task includes `assignees`, `labels`, plus a `board` and a `column` with `id` and `name`. Verifies the project belongs to the workspace.
+
 ### `PATCH /workspaces/:workspaceId/projects/:projectId`
 
 Owner or admin only. Any provided fields may be changed:
@@ -317,6 +321,16 @@ Request: `{ "name": "Engineering board" }`.
 
 Response is the created board: `id`, `projectId`, `name`, `createdAt`, and `updatedAt`.
 
+### `PATCH /workspaces/:workspaceId/projects/:projectId/boards/:boardId`
+
+Renames a board. Available to any workspace member.
+
+Request: `{ "name": "Engineering board v2" }` (2–100 characters). Response is the updated board.
+
+### `DELETE /workspaces/:workspaceId/projects/:projectId/boards/:boardId`
+
+Owner or admin only. Permanently deletes the board; its columns and tasks are removed by database cascade. Response: `{ "success": true }`.
+
 ### `POST /workspaces/:workspaceId/projects/:projectId/boards/:boardId/columns`
 
 Request:
@@ -326,6 +340,21 @@ Request:
 ```
 
 `position` is a non-negative integer and must be unique within the board. Response is the created column with `id`, `boardId`, `name`, `position`, `createdAt`, and `updatedAt`.
+
+### `PATCH /workspaces/:workspaceId/projects/:projectId/boards/:boardId/columns/:columnId`
+
+Renames a column and/or moves it to a new position. Available to any workspace member. At least one of `name` (1–80 characters) or `position` (non-negative integer) is required:
+
+```json
+{ "name": "In review", "position": 1 }
+```
+
+Moving reorders within the board: the column is inserted at the requested index and the remaining columns are renumbered to stay contiguous. Out-of-range positions clamp to the end of the board. Response is the updated column.
+
+### `DELETE /workspaces/:workspaceId/projects/:projectId/boards/:boardId/columns/:columnId`
+
+Owner or admin only. When the column still holds tasks the request fails with `409` unless `?force=true` is passed, which deletes those tasks as well (comments, assignees, and labels follow by cascade). Surviving columns are renumbered to close the gap. Response: `{ "success": true }`.
+
 
 ## Task endpoints
 
@@ -392,7 +421,11 @@ Response includes the task plus `assignees`. Assignees include a nested safe use
 
 ### `GET .../tasks`
 
-Returns non-archived tasks ordered by `columnId`, then `position`. The response shape is an array of task objects with nested assignees and nested labels (`taskId`, `labelId`, `assignedAt`, and `label`).
+Returns tasks ordered by `columnId`, then `position`. By default only non-archived tasks are returned; pass `?archived=true` to list the archived ones instead. The response shape is an array of task objects with nested assignees and nested labels (`taskId`, `labelId`, `assignedAt`, and `label`).
+
+### `GET .../tasks/:taskId`
+
+Returns one task by id (archived or not), with nested assignees and labels — used for deep links to archived tasks.
 
 ### `PATCH .../tasks/:taskId`
 
@@ -409,6 +442,15 @@ Request fields are optional:
 ```
 
 Set `dueDate` to `null` to clear it. The response is the updated task with nested assignees.
+
+### `DELETE .../tasks/:taskId`
+
+Archives the task (soft delete): it stays in the database with its comments, assignees, and labels but no longer appears in `GET .../tasks`. Response is the archived task with nested assignees and labels. To restore it, `PATCH` the task with `{ "archived": false }`.
+
+### `DELETE .../tasks/:taskId/permanent`
+
+Owner or admin only. Permanently deletes the task; its comments, assignees, labels, and activity are removed by database cascade. Response: `{ "success": true }`.
+
 
 ### `POST .../tasks/:taskId/move`
 

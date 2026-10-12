@@ -7,13 +7,16 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { MembershipRole } from '@prisma/client';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { WorkspaceMemberGuard } from '../workspaces/workspace-member.guard';
+import { WorkspaceRoles } from '../workspaces/workspace-roles.decorator';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { MoveTaskDto } from './dto/move-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -51,11 +54,32 @@ export class TasksController {
       projectId: string;
       boardId: string;
     },
+    @Query('archived') archived?: string,
   ) {
     return this.tasks.list(
       params.workspaceId,
       params.projectId,
       params.boardId,
+      archived === 'true',
+    );
+  }
+
+  /** One task by id, archived or not — used for deep links to archived tasks. */
+  @Get(':taskId')
+  get(
+    @Param()
+    params: {
+      workspaceId: string;
+      projectId: string;
+      boardId: string;
+      taskId: string;
+    },
+  ) {
+    return this.tasks.get(
+      params.workspaceId,
+      params.projectId,
+      params.boardId,
+      params.taskId,
     );
   }
 
@@ -76,6 +100,43 @@ export class TasksController {
       params.boardId,
       params.taskId,
       dto,
+    );
+  }
+
+  @Delete(':taskId')
+  remove(
+    @Param()
+    params: {
+      workspaceId: string;
+      projectId: string;
+      boardId: string;
+      taskId: string;
+    },
+  ) {
+    return this.tasks.remove(
+      params.workspaceId,
+      params.projectId,
+      params.boardId,
+      params.taskId,
+    );
+  }
+
+  @Delete(':taskId/permanent')
+  @WorkspaceRoles(MembershipRole.OWNER, MembershipRole.ADMIN)
+  purge(
+    @Param()
+    params: {
+      workspaceId: string;
+      projectId: string;
+      boardId: string;
+      taskId: string;
+    },
+  ) {
+    return this.tasks.purge(
+      params.workspaceId,
+      params.projectId,
+      params.boardId,
+      params.taskId,
     );
   }
 
